@@ -1,0 +1,52 @@
+services:
+  triton-server:
+    image: nvcr.io/nvidia/tritonserver:23.07-py3
+    ports:
+      - "8100:8000"  
+      - "8101:8001"  
+      - "8102:8002"
+    volumes:
+      - ./triton-model-repository:/models
+    command: ["tritonserver", "--model-repository=/models", "--strict-model-config=false"]
+    networks:
+      - app-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - app-network
+
+  server:
+    build: ./server
+    container_name: fastapi-server
+    environment:
+      - MODEL_NAME=roads
+      - TRITON_HOST=triton-server
+      - TRITON_PORT=8001
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=password123
+      - BUCKET_NAME=images
+    ports:
+      - "8080:80"
+    depends_on:
+      - triton-server
+      - minio
+    networks:
+      - app-network
+
+volumes:
+  minio_data:
+
+networks:
+  app-network:
+    driver: bridge

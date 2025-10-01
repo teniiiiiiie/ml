@@ -1,0 +1,12 @@
+name: "roads"
+platform: "onnxruntime_onnx"
+max_batch_size: 0
+
+instance_group {
+  count: 1
+  kind: KIND_CPU
+}
+
+default_model_filename: "model.onnx"
+
+backend: "onnxruntime"
