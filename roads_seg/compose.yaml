@@ -8,6 +8,12 @@ services:
     volumes:
       - ./triton-model-repository:/models
     command: ["tritonserver", "--model-repository=/models", "--strict-model-config=false"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - app-network
 
@@ -22,8 +28,29 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
+
+  storage-init:
+    build: ./storage-init
+    container_name: storage-init
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=password123
+      - BUCKET_NAME=images
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: on-failure:3
 
   server:
     build: ./server
@@ -39,8 +66,16 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - triton-server
-      - minio
+      triton-server:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - app-network
 
